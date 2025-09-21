@@ -14,6 +14,15 @@ interface User {
   balance: number;
 }
 
+interface CrashPlayer {
+  username: string;
+  bet: number;
+  cashOut?: number;
+  status: 'waiting' | 'playing' | 'cashed' | 'crashed';
+}
+
+type CrashPhase = 'betting' | 'flying' | 'crashed';
+
 type GameMode = 'cases' | 'updates' | 'contracts' | 'roulette' | 'crash' | 'wheel' | 'defuse' | 'double' | 'mines';
 
 const Index: React.FC = () => {
@@ -21,9 +30,18 @@ const Index: React.FC = () => {
   const [activeTab, setActiveTab] = useState<GameMode>('cases');
   const [isLoading, setIsLoading] = useState(false);
   const [crashMultiplier, setCrashMultiplier] = useState(1.00);
-  const [isCrashActive, setIsCrashActive] = useState(false);
+  const [crashPhase, setCrashPhase] = useState<CrashPhase>('betting');
   const [crashHistory, setCrashHistory] = useState<number[]>([1.24, 3.67, 1.89, 15.23, 2.11]);
+  const [bettingTimeLeft, setBettingTimeLeft] = useState(10);
+  const [crashPlayers, setCrashPlayers] = useState<CrashPlayer[]>([
+    { username: 'Pro_Gamer', bet: 100, status: 'waiting' },
+    { username: 'LuckyShot', bet: 250, status: 'waiting' },
+    { username: 'CrashMaster', bet: 50, status: 'waiting' },
+    { username: 'BigWinner', bet: 500, status: 'waiting' },
+    { username: 'FastHands', bet: 75, status: 'waiting' }
+  ]);
   const crashIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const bettingIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   const handleSteamLogin = async () => {
     setIsLoading(true);
@@ -76,7 +94,8 @@ const Index: React.FC = () => {
       title: 'Краш',
       description: 'Делайте ставки и забирайте выигрыш до краша',
       currentMultiplier: crashMultiplier,
-      isActive: isCrashActive
+      phase: crashPhase,
+      timeLeft: bettingTimeLeft
     },
     wheel: {
       title: 'Колесо Фортуны',
@@ -111,11 +130,39 @@ const Index: React.FC = () => {
     return Math.random() * 50 + 50; // 5% chance for 50x-100x
   };
 
-  const startCrashGame = () => {
-    if (isCrashActive) return;
-    
-    setIsCrashActive(true);
+  const generateRandomPlayers = () => {
+    const names = ['GamerPro', 'LuckyOne', 'CrashKing', 'BigBet', 'QuickCash', 'RiskTaker', 'WinnerX', 'BetMaster'];
+    const count = Math.floor(Math.random() * 4) + 3; // 3-6 players
+    return Array.from({ length: count }, (_, i) => ({
+      username: names[Math.floor(Math.random() * names.length)] + Math.floor(Math.random() * 100),
+      bet: Math.floor(Math.random() * 900) + 100, // 100-1000
+      status: 'waiting' as const
+    }));
+  };
+
+  const startBettingPhase = () => {
+    setCrashPhase('betting');
+    setBettingTimeLeft(10);
     setCrashMultiplier(1.00);
+    setCrashPlayers(generateRandomPlayers());
+    
+    bettingIntervalRef.current = setInterval(() => {
+      setBettingTimeLeft(prev => {
+        if (prev <= 1) {
+          if (bettingIntervalRef.current) {
+            clearInterval(bettingIntervalRef.current);
+          }
+          startCrashFlight();
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+  };
+
+  const startCrashFlight = () => {
+    setCrashPhase('flying');
+    setCrashPlayers(prev => prev.map(p => ({ ...p, status: 'playing' })));
     
     const crashPoint = generateCrashPoint();
     const duration = Math.min(crashPoint * 1000, 15000); // Max 15 seconds
@@ -127,27 +174,40 @@ const Index: React.FC = () => {
       
       if (progress >= 1) {
         // Crash!
-        setIsCrashActive(false);
+        setCrashPhase('crashed');
         setCrashHistory(prev => [crashPoint, ...prev.slice(0, 4)]);
+        setCrashPlayers(prev => prev.map(p => ({ ...p, status: 'crashed' })));
+        
         if (crashIntervalRef.current) {
           clearInterval(crashIntervalRef.current);
         }
-        // Auto restart after 3 seconds
-        setTimeout(() => startCrashGame(), 3000);
+        // Start new betting phase after 3 seconds
+        setTimeout(() => startBettingPhase(), 3000);
       } else {
         const currentMult = 1 + (crashPoint - 1) * progress;
         setCrashMultiplier(currentMult);
+        
+        // Simulate some players cashing out
+        setCrashPlayers(prev => prev.map(p => {
+          if (p.status === 'playing' && Math.random() < 0.01 && currentMult > 1.5) {
+            return { ...p, status: 'cashed', cashOut: currentMult };
+          }
+          return p;
+        }));
       }
     }, 50);
   };
 
   useEffect(() => {
     // Auto start crash game
-    setTimeout(() => startCrashGame(), 2000);
+    setTimeout(() => startBettingPhase(), 2000);
     
     return () => {
       if (crashIntervalRef.current) {
         clearInterval(crashIntervalRef.current);
+      }
+      if (bettingIntervalRef.current) {
+        clearInterval(bettingIntervalRef.current);
       }
     };
   }, []);
@@ -424,40 +484,57 @@ const Index: React.FC = () => {
                   <Card>
                     <CardContent className="p-6">
                       <div className="relative h-64 bg-background rounded-lg overflow-hidden border">
-                        {/* Animated Graph */}
-                        <div className="absolute inset-0 flex items-end justify-center">
-                          <div 
-                            className="relative w-full h-full"
-                            style={{
-                              background: `linear-gradient(45deg, 
-                                transparent 0%, 
-                                transparent ${Math.min((crashMultiplier - 1) * 20, 80)}%, 
-                                rgba(239, 68, 68, 0.1) ${Math.min((crashMultiplier - 1) * 20, 80)}%, 
-                                rgba(239, 68, 68, 0.3) 100%)`
-                            }}
-                          >
-                            {/* Line Chart */}
-                            <svg className="absolute inset-0 w-full h-full">
-                              <polyline
-                                fill="none"
-                                stroke={isCrashActive ? "#ef4444" : "#666"}
-                                strokeWidth="3"
-                                points={`0,${256} ${Math.min((crashMultiplier - 1) * 100, 400)},${256 - Math.min((crashMultiplier - 1) * 200, 240)}`}
-                                className="transition-all duration-75 ease-linear"
-                              />
-                            </svg>
-                            
-                            {/* Current Multiplier Display */}
-                            <div className="absolute top-4 left-4 bg-card p-3 rounded-lg border">
-                              <div className={`text-3xl font-bold ${isCrashActive ? 'text-primary animate-pulse' : 'text-muted-foreground'}`}>
-                                {crashMultiplier.toFixed(2)}x
+                        {/* Betting Timer or Animated Graph */}
+                        {crashPhase === 'betting' ? (
+                          <div className="absolute inset-0 flex items-center justify-center">
+                            <div className="text-center">
+                              <div className="text-6xl font-bold text-primary mb-4">
+                                {bettingTimeLeft}
                               </div>
-                              <div className="text-sm text-muted-foreground">
-                                {isCrashActive ? 'Лети!' : 'Краш!'}
+                              <div className="text-xl text-muted-foreground">
+                                Размещение ставок
                               </div>
                             </div>
                           </div>
-                        </div>
+                        ) : (
+                          <div className="absolute inset-0 flex items-end justify-center">
+                            <div 
+                              className="relative w-full h-full"
+                              style={{
+                                background: `linear-gradient(45deg, 
+                                  transparent 0%, 
+                                  transparent ${Math.min((crashMultiplier - 1) * 20, 80)}%, 
+                                  ${crashPhase === 'crashed' ? 'rgba(239, 68, 68, 0.3)' : 'rgba(34, 197, 94, 0.1)'} ${Math.min((crashMultiplier - 1) * 20, 80)}%, 
+                                  ${crashPhase === 'crashed' ? 'rgba(239, 68, 68, 0.5)' : 'rgba(34, 197, 94, 0.3)'} 100%)`
+                              }}
+                            >
+                              {/* Line Chart */}
+                              <svg className="absolute inset-0 w-full h-full">
+                                <polyline
+                                  fill="none"
+                                  stroke={crashPhase === 'crashed' ? "#ef4444" : "#22c55e"}
+                                  strokeWidth="3"
+                                  points={`0,${256} ${Math.min((crashMultiplier - 1) * 100, 400)},${256 - Math.min((crashMultiplier - 1) * 200, 240)}`}
+                                  className="transition-all duration-75 ease-linear"
+                                />
+                              </svg>
+                              
+                              {/* Current Multiplier Display */}
+                              <div className="absolute top-4 left-4 bg-card p-3 rounded-lg border">
+                                <div className={`text-3xl font-bold ${
+                                  crashPhase === 'flying' ? 'text-green-400 animate-pulse' : 
+                                  crashPhase === 'crashed' ? 'text-red-400' : 'text-muted-foreground'
+                                }`}>
+                                  {crashMultiplier.toFixed(2)}x
+                                </div>
+                                <div className="text-sm text-muted-foreground">
+                                  {crashPhase === 'flying' ? 'Лети!' : 
+                                   crashPhase === 'crashed' ? 'Краш!' : 'Ожидание'}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        )}
                       </div>
                       
                       {/* Controls */}
@@ -467,22 +544,59 @@ const Index: React.FC = () => {
                             type="number" 
                             placeholder="Ставка" 
                             className="w-full px-4 py-2 bg-input border border-border rounded-md text-foreground"
-                            disabled={isCrashActive}
+                            disabled={crashPhase !== 'betting'}
                           />
                         </div>
                         <Button 
-                          className="bg-primary hover:bg-primary/90 min-w-24"
-                          disabled={isCrashActive}
+                          className={`min-w-24 ${
+                            crashPhase === 'betting' ? 'bg-primary hover:bg-primary/90' :
+                            crashPhase === 'flying' ? 'bg-green-600 hover:bg-green-700' :
+                            'bg-red-600 hover:bg-red-700'
+                          }`}
+                          disabled={crashPhase === 'crashed'}
                         >
-                          {isCrashActive ? 'Забрать' : 'Играть'}
+                          {crashPhase === 'betting' ? 'Ставка' :
+                           crashPhase === 'flying' ? 'Забрать' : 'Ждите'}
                         </Button>
                       </div>
                     </CardContent>
                   </Card>
                 </div>
 
-                {/* History */}
+                {/* Players List */}
                 <div className="space-y-4">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-lg">Игроки ({crashPlayers.length})</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-2 max-h-64 overflow-y-auto">
+                      {crashPlayers.map((player, index) => (
+                        <div 
+                          key={index}
+                          className="p-3 rounded-lg flex justify-between items-center bg-card border"
+                        >
+                          <div className="flex items-center space-x-2">
+                            <div className={`w-2 h-2 rounded-full ${
+                              player.status === 'waiting' ? 'bg-yellow-400' :
+                              player.status === 'playing' ? 'bg-green-400' :
+                              player.status === 'cashed' ? 'bg-blue-400' :
+                              'bg-red-400'
+                            }`}></div>
+                            <span className="font-medium text-sm">{player.username}</span>
+                          </div>
+                          <div className="text-right">
+                            <div className="text-sm font-bold">₽{player.bet}</div>
+                            {player.cashOut && (
+                              <div className="text-xs text-green-400">
+                                {player.cashOut.toFixed(2)}x
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </CardContent>
+                  </Card>
+
                   <Card>
                     <CardHeader>
                       <CardTitle className="text-lg">История</CardTitle>
