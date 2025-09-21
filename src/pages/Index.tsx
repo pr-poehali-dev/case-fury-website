@@ -23,7 +23,17 @@ interface CrashPlayer {
 
 type CrashPhase = 'betting' | 'flying' | 'crashed';
 
-type GameMode = 'cases' | 'updates' | 'contracts' | 'roulette' | 'crash' | 'wheel' | 'defuse' | 'double' | 'mines';
+type GameMode = 'cases' | 'exchange' | 'contracts' | 'roulette' | 'crash' | 'wheel' | 'defuse' | 'double' | 'mines';
+
+interface CSSkin {
+  name: string;
+  weapon: string;
+  rarity: 'consumer' | 'industrial' | 'milspec' | 'restricted' | 'classified' | 'covert' | 'knife';
+  condition: 'BS' | 'WW' | 'FT' | 'MW' | 'FN';
+  price: number;
+  image: string;
+  float: number;
+}
 
 const Index: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
@@ -51,7 +61,7 @@ const Index: React.FC = () => {
         id: '76561198123456789',
         username: 'Pro_Gamer_2024',
         avatar: 'https://avatars.steamstatic.com/f3b09d1dcdcf6e4a2d2e2a2a2a2a2a2a_full.jpg',
-        balance: 0
+        balance: 15000
       });
       setIsLoading(false);
     }, 1500);
@@ -67,13 +77,16 @@ const Index: React.FC = () => {
         { name: 'Knife Collection', price: 1000, rarity: 'mythical' }
       ]
     },
-    updates: {
-      title: 'Обновления',
-      description: 'Последние новости и обновления сайта',
-      items: [
-        { name: 'Новые кейсы добавлены', date: '21.09.2024' },
-        { name: 'Улучшена система краша', date: '20.09.2024' },
-        { name: 'Добавлен режим мин', date: '19.09.2024' }
+    exchange: {
+      title: 'Обменник',
+      description: 'Обменивайте баланс на скины Counter-Strike',
+      skins: [
+        { name: 'Redline', weapon: 'AK-47', rarity: 'classified', condition: 'FT', price: 2850, image: '/img/ak47-redline.jpg', float: 0.25 },
+        { name: 'Asiimov', weapon: 'AWP', rarity: 'covert', condition: 'FT', price: 8900, image: '/img/awp-asiimov.jpg', float: 0.23 },
+        { name: 'Doppler', weapon: 'Karambit', rarity: 'knife', condition: 'FN', price: 125000, image: '/img/karambit-doppler.jpg', float: 0.02 },
+        { name: 'Neo-Noir', weapon: 'M4A4', rarity: 'covert', condition: 'MW', price: 4200, image: '/img/m4a4-neo-noir.jpg', float: 0.08 },
+        { name: 'Hypnotic', weapon: 'Nova', rarity: 'milspec', condition: 'FN', price: 180, image: '/img/nova-hypnotic.jpg', float: 0.01 },
+        { name: 'Vulcan', weapon: 'AK-47', rarity: 'classified', condition: 'MW', price: 3400, image: '/img/ak47-vulcan.jpg', float: 0.12 }
       ]
     },
     contracts: {
@@ -262,9 +275,9 @@ const Index: React.FC = () => {
                 <Icon name="Package" className="w-5 h-5 mb-1" />
                 <span className="text-xs">Кейсы</span>
               </TabsTrigger>
-              <TabsTrigger value="updates" className="flex flex-col items-center py-3">
-                <Icon name="Newspaper" className="w-5 h-5 mb-1" />
-                <span className="text-xs">Обновления</span>
+              <TabsTrigger value="exchange" className="flex flex-col items-center py-3">
+                <Icon name="ArrowRightLeft" className="w-5 h-5 mb-1" />
+                <span className="text-xs">Обменник</span>
               </TabsTrigger>
               <TabsTrigger value="contracts" className="flex flex-col items-center py-3">
                 <Icon name="FileText" className="w-5 h-5 mb-1" />
@@ -410,23 +423,77 @@ const Index: React.FC = () => {
             </div>
           </TabsContent>
 
-          {/* Updates */}
-          <TabsContent value="updates">
+          {/* Exchange */}
+          <TabsContent value="exchange">
             <div className="space-y-6">
               <div className="text-center">
-                <h2 className="text-3xl font-heading font-bold mb-2">{gameContent.updates.title}</h2>
-                <p className="text-muted-foreground">{gameContent.updates.description}</p>
+                <h2 className="text-3xl font-heading font-bold mb-2">{gameContent.exchange.title}</h2>
+                <p className="text-muted-foreground">{gameContent.exchange.description}</p>
+                {user && (
+                  <div className="mt-4 p-4 bg-card rounded-lg border inline-block">
+                    <div className="text-lg font-semibold">Ваш баланс: <span className="text-primary">₽{user.balance.toLocaleString()}</span></div>
+                  </div>
+                )}
               </div>
-              <div className="space-y-4">
-                {gameContent.updates.items.map((item, index) => (
-                  <Card key={index}>
-                    <CardContent className="p-4 flex items-center justify-between">
-                      <span>{item.name}</span>
-                      <Badge variant="secondary">{item.date}</Badge>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {gameContent.exchange.skins.map((skin, index) => (
+                  <Card key={index} className="hover:shadow-lg transition-shadow">
+                    <CardHeader className="pb-2">
+                      <div className="aspect-video bg-gradient-to-br from-slate-800 to-slate-900 rounded-lg flex items-center justify-center mb-3">
+                        <Icon name="Zap" className="w-12 h-12 text-muted-foreground" />
+                      </div>
+                      <CardTitle className="text-lg">{skin.weapon} | {skin.name}</CardTitle>
+                      <div className="flex items-center justify-between">
+                        <Badge variant={
+                          skin.rarity === 'knife' ? 'destructive' :
+                          skin.rarity === 'covert' ? 'destructive' :
+                          skin.rarity === 'classified' ? 'default' :
+                          skin.rarity === 'restricted' ? 'secondary' :
+                          'outline'
+                        }>
+                          {skin.rarity.toUpperCase()}
+                        </Badge>
+                        <Badge variant="outline">{skin.condition}</Badge>
+                      </div>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-3">
+                        <div className="flex justify-between text-sm">
+                          <span>Float:</span>
+                          <span className="font-mono">{skin.float.toFixed(3)}</span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-2xl font-bold text-primary">₽{skin.price.toLocaleString()}</span>
+                          <Button 
+                            className="bg-primary hover:bg-primary/90"
+                            disabled={!user || user.balance < skin.price}
+                          >
+                            {!user ? 'Войдите' : user.balance < skin.price ? 'Недостаточно' : 'Купить'}
+                          </Button>
+                        </div>
+                      </div>
                     </CardContent>
                   </Card>
                 ))}
               </div>
+              
+              {!user && (
+                <div className="text-center py-8">
+                  <Card className="max-w-md mx-auto">
+                    <CardContent className="py-6">
+                      <Icon name="Lock" className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
+                      <h3 className="text-lg font-semibold mb-2">Вход через Steam</h3>
+                      <p className="text-muted-foreground mb-4">
+                        Войдите через Steam для покупки скинов
+                      </p>
+                      <Button onClick={handleSteamLogin} className="bg-primary hover:bg-primary/90">
+                        Войти через Steam
+                      </Button>
+                    </CardContent>
+                  </Card>
+                </div>
+              )}
             </div>
           </TabsContent>
 
