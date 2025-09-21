@@ -304,33 +304,16 @@ const Index: React.FC = () => {
         <Tabs value={activeTab}>
           {/* Cases */}
           <TabsContent value="cases">
-            <div className="space-y-6">
-              <div className="text-center">
-                <h2 className="text-3xl font-heading font-bold mb-2">{gameContent.cases.title}</h2>
-                <p className="text-muted-foreground">{gameContent.cases.description}</p>
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                {gameContent.cases.items.map((item, index) => (
-                  <Card key={index} className="hover:shadow-lg transition-shadow">
-                    <CardHeader>
-                      <CardTitle className="flex items-center justify-between">
-                        {item.name}
-                        <Badge variant={item.rarity === 'legendary' ? 'destructive' : 'secondary'}>
-                          {item.rarity}
-                        </Badge>
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="flex items-center justify-between">
-                        <span className="text-2xl font-bold text-primary">${item.price}</span>
-                        <Button className="bg-primary hover:bg-primary/90">
-                          Открыть
-                        </Button>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
+            <div className="min-h-96 flex items-center justify-center">
+              <Card className="max-w-md mx-auto">
+                <CardContent className="text-center py-12">
+                  <Icon name="Package" className="w-16 h-16 mx-auto mb-4 text-muted-foreground" />
+                  <h3 className="text-2xl font-heading font-bold mb-2">Кейсы</h3>
+                  <p className="text-muted-foreground">
+                    Данная страница находится в разработке
+                  </p>
+                </CardContent>
+              </Card>
             </div>
           </TabsContent>
 
