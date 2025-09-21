@@ -21,6 +21,16 @@ interface CrashPlayer {
   status: 'waiting' | 'playing' | 'cashed' | 'crashed';
 }
 
+interface DoublePlayer {
+  username: string;
+  bet: number;
+  multiplier: number;
+  won?: boolean;
+  payout?: number;
+}
+
+type DoublePhase = 'betting' | 'spinning' | 'result';
+
 type CrashPhase = 'betting' | 'flying' | 'crashed';
 
 type GameMode = 'cases' | 'exchange' | 'contracts' | 'roulette' | 'crash' | 'wheel' | 'defuse' | 'double' | 'mines';
@@ -55,6 +65,13 @@ const Index: React.FC = () => {
   const [searchPrice, setSearchPrice] = useState('');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
   const [filteredItems, setFilteredItems] = useState<CSItem[]>([]);
+  const [userBet, setUserBet] = useState('');
+  const [crashUserBet, setCrashUserBet] = useState('');
+  const [doublePhase, setDoublePhase] = useState<DoublePhase>('betting');
+  const [doublePlayers, setDoublePlayers] = useState<DoublePlayer[]>([]);
+  const [doubleResult, setDoubleResult] = useState<number>(2);
+  const [doubleTimeLeft, setDoubleTimeLeft] = useState(15);
+  const doubleIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const crashIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const bettingIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -166,21 +183,19 @@ const Index: React.FC = () => {
       phase: crashPhase,
       timeLeft: bettingTimeLeft
     },
-    wheel: {
-      title: 'Колесо Фортуны',
-      description: 'Бесплатное вращение каждые 24 часа',
-      prizes: [10, 25, 50, 100, 250, 500, 1000, 'Jackpot']
+    double: {
+      title: 'Дабл',
+      description: 'Делайте ставки на множители и удваивайте выигрыш',
+      multipliers: [2, 3, 4, 10, 50],
+      timeLeft: doubleTimeLeft,
+      phase: doublePhase,
+      result: doubleResult
     },
     defuse: {
       title: 'Дефьюз',
       description: 'Успейте обезвредить бомбу до взрыва',
       timeLeft: 45,
       wires: ['red', 'blue', 'yellow', 'green']
-    },
-    double: {
-      title: 'Дабл',
-      description: 'Удвойте свою ставку или потеряйте всё',
-      chance: 50
     },
     mines: {
       title: 'Мины',
@@ -245,7 +260,17 @@ const Index: React.FC = () => {
         // Crash!
         setCrashPhase('crashed');
         setCrashHistory(prev => [crashPoint, ...prev.slice(0, 4)]);
-        setCrashPlayers(prev => prev.map(p => ({ ...p, status: 'crashed' })));
+        
+        // Update players and pay winners
+        setCrashPlayers(prev => prev.map(p => {
+          if (p.status === 'cashed') {
+            // Player already cashed out - they won
+            return p;
+          } else {
+            // Player didn't cash out - they lost
+            return { ...p, status: 'crashed' };
+          }
+        }));
         
         if (crashIntervalRef.current) {
           clearInterval(crashIntervalRef.current);
@@ -270,6 +295,8 @@ const Index: React.FC = () => {
   useEffect(() => {
     // Auto start crash game
     setTimeout(() => startBettingPhase(), 2000);
+    // Auto start double game
+    setTimeout(() => startDoubleBetting(), 1000);
     
     return () => {
       if (crashIntervalRef.current) {
@@ -277,6 +304,9 @@ const Index: React.FC = () => {
       }
       if (bettingIntervalRef.current) {
         clearInterval(bettingIntervalRef.current);
+      }
+      if (doubleIntervalRef.current) {
+        clearInterval(doubleIntervalRef.current);
       }
     };
   }, []);
@@ -300,6 +330,113 @@ const Index: React.FC = () => {
     
     setFilteredItems(items);
   }, [searchPrice, sortOrder, gameContent.exchange.items]);
+
+  // Double game logic
+  const generateDoublePlayers = () => {
+    const names = ['DoubleMaster', 'LuckyBet', 'RiskPlayer', 'BigMulti', 'QuickWin'];
+    const count = Math.floor(Math.random() * 5) + 3;
+    return Array.from({ length: count }, (_, i) => ({
+      username: names[Math.floor(Math.random() * names.length)] + Math.floor(Math.random() * 100),
+      bet: Math.floor(Math.random() * 800) + 200,
+      multiplier: [2, 3, 4, 10, 50][Math.floor(Math.random() * 5)]
+    }));
+  };
+
+  const startDoubleBetting = () => {
+    setDoublePhase('betting');
+    setDoubleTimeLeft(15);
+    setDoublePlayers(generateDoublePlayers());
+    
+    doubleIntervalRef.current = setInterval(() => {
+      setDoubleTimeLeft(prev => {
+        if (prev <= 1) {
+          if (doubleIntervalRef.current) {
+            clearInterval(doubleIntervalRef.current);
+          }
+          startDoubleSpinning();
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+  };
+
+  const startDoubleSpinning = () => {
+    setDoublePhase('spinning');
+    
+    // Generate result based on probabilities
+    const rand = Math.random();
+    let result;
+    if (rand < 0.4) result = 2;
+    else if (rand < 0.7) result = 3;
+    else if (rand < 0.85) result = 4;
+    else if (rand < 0.97) result = 10;
+    else result = 50;
+    
+    setDoubleResult(result);
+    
+    setTimeout(() => {
+      setDoublePhase('result');
+      setDoublePlayers(prev => prev.map(p => {
+        const won = p.multiplier === result;
+        const payout = won ? p.bet * p.multiplier : 0;
+        
+        // Pay out winnings to user if they won
+        if (won && user && p.username === user.username) {
+          setUser(prevUser => prevUser ? { ...prevUser, balance: prevUser.balance + payout } : null);
+        }
+        
+        return { ...p, won, payout };
+      }));
+      
+      setTimeout(() => startDoubleBetting(), 5000);
+    }, 3000);
+  };
+
+  const placeBetDouble = (multiplier: number) => {
+    if (!user || !userBet || doublePhase !== 'betting') return;
+    
+    const betAmount = parseInt(userBet);
+    if (isNaN(betAmount) || betAmount <= 0 || betAmount > user.balance) return;
+    
+    setUser(prev => prev ? { ...prev, balance: prev.balance - betAmount } : null);
+    setDoublePlayers(prev => [...prev, {
+      username: user.username,
+      bet: betAmount,
+      multiplier: multiplier
+    }]);
+    setUserBet('');
+  };
+
+  const placeBetCrash = () => {
+    if (!user || !crashUserBet || crashPhase !== 'betting') return;
+    
+    const betAmount = parseInt(crashUserBet);
+    if (isNaN(betAmount) || betAmount <= 0 || betAmount > user.balance) return;
+    
+    setUser(prev => prev ? { ...prev, balance: prev.balance - betAmount } : null);
+    setCrashPlayers(prev => [...prev, {
+      username: user.username,
+      bet: betAmount,
+      status: 'waiting'
+    }]);
+    setCrashUserBet('');
+  };
+
+  const cashOutCrash = () => {
+    if (!user || crashPhase !== 'flying') return;
+    
+    const userPlayer = crashPlayers.find(p => p.username === user.username && p.status === 'playing');
+    if (!userPlayer) return;
+    
+    const payout = Math.floor(userPlayer.bet * crashMultiplier);
+    setUser(prev => prev ? { ...prev, balance: prev.balance + payout } : null);
+    setCrashPlayers(prev => prev.map(p => 
+      p.username === user.username && p.status === 'playing' 
+        ? { ...p, status: 'cashed', cashOut: crashMultiplier }
+        : p
+    ));
+  };
 
   return (
     <div className="min-h-screen bg-background text-foreground font-sans">
@@ -367,18 +504,15 @@ const Index: React.FC = () => {
                 <Icon name="TrendingUp" className="w-5 h-5 mb-1" />
                 <span className="text-xs">Краш</span>
               </TabsTrigger>
-              <TabsTrigger value="wheel" className="flex flex-col items-center py-3">
-                <Icon name="Disc" className="w-5 h-5 mb-1" />
-                <span className="text-xs">Колесо</span>
+              <TabsTrigger value="double" className="flex flex-col items-center py-3">
+                <Icon name="Target" className="w-5 h-5 mb-1" />
+                <span className="text-xs">Дабл</span>
               </TabsTrigger>
               <TabsTrigger value="defuse" className="flex flex-col items-center py-3">
                 <Icon name="Bomb" className="w-5 h-5 mb-1" />
                 <span className="text-xs">Дефьюз</span>
               </TabsTrigger>
-              <TabsTrigger value="double" className="flex flex-col items-center py-3">
-                <Icon name="Coins" className="w-5 h-5 mb-1" />
-                <span className="text-xs">Дабл</span>
-              </TabsTrigger>
+
               <TabsTrigger value="mines" className="flex flex-col items-center py-3">
                 <Icon name="Zap" className="w-5 h-5 mb-1" />
                 <span className="text-xs">Мины</span>
@@ -717,22 +851,31 @@ const Index: React.FC = () => {
                           <input 
                             type="number" 
                             placeholder="Ставка" 
+                            value={crashUserBet}
+                            onChange={(e) => setCrashUserBet(e.target.value)}
                             className="w-full px-4 py-2 bg-input border border-border rounded-md text-foreground"
                             disabled={crashPhase !== 'betting'}
                           />
                         </div>
                         <Button 
+                          onClick={crashPhase === 'betting' ? placeBetCrash : crashPhase === 'flying' ? cashOutCrash : undefined}
                           className={`min-w-24 ${
                             crashPhase === 'betting' ? 'bg-primary hover:bg-primary/90' :
                             crashPhase === 'flying' ? 'bg-green-600 hover:bg-green-700' :
                             'bg-red-600 hover:bg-red-700'
                           }`}
-                          disabled={crashPhase === 'crashed'}
+                          disabled={crashPhase === 'crashed' || !user}
                         >
                           {crashPhase === 'betting' ? 'Ставка' :
                            crashPhase === 'flying' ? 'Забрать' : 'Ждите'}
                         </Button>
                       </div>
+                      
+                      {user && (
+                        <div className="mt-2 text-sm text-muted-foreground text-center">
+                          Баланс: ₽{user.balance.toLocaleString()}
+                        </div>
+                      )}
                     </CardContent>
                   </Card>
                 </div>
@@ -817,21 +960,149 @@ const Index: React.FC = () => {
             </div>
           </TabsContent>
 
-          {/* Wheel */}
-          <TabsContent value="wheel">
+          {/* Double */}
+          <TabsContent value="double">
             <div className="space-y-6">
               <div className="text-center">
-                <h2 className="text-3xl font-heading font-bold mb-2">{gameContent.wheel.title}</h2>
-                <p className="text-muted-foreground">{gameContent.wheel.description}</p>
+                <h2 className="text-3xl font-heading font-bold mb-2">{gameContent.double.title}</h2>
+                <p className="text-muted-foreground">{gameContent.double.description}</p>
               </div>
-              <Card className="max-w-md mx-auto">
-                <CardContent className="text-center py-8">
-                  <Icon name="Disc" className="w-24 h-24 mx-auto mb-4 text-primary" />
-                  <Button className="bg-primary hover:bg-primary/90" size="lg">
-                    Крутить колесо
-                  </Button>
-                </CardContent>
-              </Card>
+              
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                {/* Main Game Area */}
+                <div className="lg:col-span-2">
+                  <Card>
+                    <CardContent className="p-6">
+                      {/* Timer or Result */}
+                      <div className="text-center mb-6">
+                        {doublePhase === 'betting' && (
+                          <div>
+                            <div className="text-4xl font-bold text-primary mb-2">{doubleTimeLeft}</div>
+                            <div className="text-muted-foreground">Размещение ставок</div>
+                          </div>
+                        )}
+                        {doublePhase === 'spinning' && (
+                          <div>
+                            <div className="text-3xl font-bold text-yellow-400 animate-pulse mb-2">🎲</div>
+                            <div className="text-muted-foreground">Вращение...</div>
+                          </div>
+                        )}
+                        {doublePhase === 'result' && (
+                          <div>
+                            <div className="text-6xl font-bold text-green-400 mb-2">{doubleResult}x</div>
+                            <div className="text-muted-foreground">Результат!</div>
+                          </div>
+                        )}
+                      </div>
+                      
+                      {/* Multiplier Buttons */}
+                      <div className="grid grid-cols-5 gap-3 mb-6">
+                        {gameContent.double.multipliers.map((mult) => (
+                          <Button
+                            key={mult}
+                            onClick={() => placeBetDouble(mult)}
+                            disabled={doublePhase !== 'betting' || !user}
+                            className={`h-16 text-lg font-bold ${
+                              mult === 2 ? 'bg-green-600 hover:bg-green-700' :
+                              mult === 3 ? 'bg-blue-600 hover:bg-blue-700' :
+                              mult === 4 ? 'bg-purple-600 hover:bg-purple-700' :
+                              mult === 10 ? 'bg-orange-600 hover:bg-orange-700' :
+                              'bg-red-600 hover:bg-red-700'
+                            }`}
+                          >
+                            {mult}x
+                          </Button>
+                        ))}
+                      </div>
+                      
+                      {/* Bet Input */}
+                      <div className="flex gap-4">
+                        <input
+                          type="number"
+                          placeholder="Ставка"
+                          value={userBet}
+                          onChange={(e) => setUserBet(e.target.value)}
+                          disabled={doublePhase !== 'betting'}
+                          className="flex-1 px-4 py-2 bg-input border border-border rounded-md text-foreground"
+                        />
+                        <div className="text-sm text-muted-foreground pt-2">
+                          {user ? `Баланс: ₽${user.balance.toLocaleString()}` : 'Войдите в систему'}
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+
+                {/* Players List */}
+                <div className="space-y-4">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-lg">Игроки ({doublePlayers.length})</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-2 max-h-64 overflow-y-auto">
+                      {doublePlayers.map((player, index) => (
+                        <div 
+                          key={index}
+                          className={`p-3 rounded-lg flex justify-between items-center border ${
+                            doublePhase === 'result' && player.won ? 'bg-green-500/20 border-green-500' :
+                            doublePhase === 'result' && !player.won ? 'bg-red-500/20 border-red-500' :
+                            'bg-card'
+                          }`}
+                        >
+                          <div className="flex items-center space-x-2">
+                            <div className={`w-8 h-6 rounded flex items-center justify-center text-xs font-bold text-white ${
+                              player.multiplier === 2 ? 'bg-green-600' :
+                              player.multiplier === 3 ? 'bg-blue-600' :
+                              player.multiplier === 4 ? 'bg-purple-600' :
+                              player.multiplier === 10 ? 'bg-orange-600' :
+                              'bg-red-600'
+                            }`}>
+                              {player.multiplier}x
+                            </div>
+                            <span className="font-medium text-sm">{player.username}</span>
+                          </div>
+                          <div className="text-right">
+                            <div className="text-sm font-bold">₽{player.bet}</div>
+                            {player.payout && (
+                              <div className="text-xs text-green-400">
+                                +₽{player.payout}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </CardContent>
+                  </Card>
+                  
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-lg">Шансы</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-2 text-sm">
+                      <div className="flex justify-between">
+                        <span>2x:</span>
+                        <span className="text-green-400">40%</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>3x:</span>
+                        <span className="text-blue-400">30%</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>4x:</span>
+                        <span className="text-purple-400">15%</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>10x:</span>
+                        <span className="text-orange-400">12%</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>50x:</span>
+                        <span className="text-red-400">3%</span>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+              </div>
             </div>
           </TabsContent>
 
@@ -870,30 +1141,7 @@ const Index: React.FC = () => {
             </div>
           </TabsContent>
 
-          {/* Double */}
-          <TabsContent value="double">
-            <div className="space-y-6">
-              <div className="text-center">
-                <h2 className="text-3xl font-heading font-bold mb-2">{gameContent.double.title}</h2>
-                <p className="text-muted-foreground">{gameContent.double.description}</p>
-              </div>
-              <Card className="max-w-md mx-auto">
-                <CardContent className="text-center py-8 space-y-4">
-                  <div className="text-2xl font-bold">Шанс: {gameContent.double.chance}%</div>
-                  <div className="space-y-2">
-                    <input 
-                      type="number" 
-                      placeholder="Ставка" 
-                      className="w-full px-4 py-2 bg-input border border-border rounded-md text-foreground"
-                    />
-                    <Button className="w-full bg-primary hover:bg-primary/90">
-                      Удвоить
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-          </TabsContent>
+
         </Tabs>
       </main>
     </div>
