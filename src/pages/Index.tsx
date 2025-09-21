@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -20,6 +20,10 @@ const Index: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
   const [activeTab, setActiveTab] = useState<GameMode>('cases');
   const [isLoading, setIsLoading] = useState(false);
+  const [crashMultiplier, setCrashMultiplier] = useState(1.00);
+  const [isCrashActive, setIsCrashActive] = useState(false);
+  const [crashHistory, setCrashHistory] = useState<number[]>([1.24, 3.67, 1.89, 15.23, 2.11]);
+  const crashIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   const handleSteamLogin = async () => {
     setIsLoading(true);
@@ -71,8 +75,8 @@ const Index: React.FC = () => {
     crash: {
       title: 'Краш',
       description: 'Делайте ставки и забирайте выигрыш до краша',
-      currentMultiplier: 1.24,
-      isActive: true
+      currentMultiplier: crashMultiplier,
+      isActive: isCrashActive
     },
     wheel: {
       title: 'Колесо Фортуны',
@@ -97,6 +101,56 @@ const Index: React.FC = () => {
       minesCount: 5
     }
   };
+
+  // Crash game logic
+  const generateCrashPoint = () => {
+    const rand = Math.random();
+    if (rand < 0.5) return Math.random() * 2 + 1; // 50% chance for 1x-3x
+    if (rand < 0.8) return Math.random() * 8 + 2; // 30% chance for 2x-10x
+    if (rand < 0.95) return Math.random() * 40 + 10; // 15% chance for 10x-50x
+    return Math.random() * 50 + 50; // 5% chance for 50x-100x
+  };
+
+  const startCrashGame = () => {
+    if (isCrashActive) return;
+    
+    setIsCrashActive(true);
+    setCrashMultiplier(1.00);
+    
+    const crashPoint = generateCrashPoint();
+    const duration = Math.min(crashPoint * 1000, 15000); // Max 15 seconds
+    const startTime = Date.now();
+    
+    crashIntervalRef.current = setInterval(() => {
+      const elapsed = Date.now() - startTime;
+      const progress = elapsed / duration;
+      
+      if (progress >= 1) {
+        // Crash!
+        setIsCrashActive(false);
+        setCrashHistory(prev => [crashPoint, ...prev.slice(0, 4)]);
+        if (crashIntervalRef.current) {
+          clearInterval(crashIntervalRef.current);
+        }
+        // Auto restart after 3 seconds
+        setTimeout(() => startCrashGame(), 3000);
+      } else {
+        const currentMult = 1 + (crashPoint - 1) * progress;
+        setCrashMultiplier(currentMult);
+      }
+    }, 50);
+  };
+
+  useEffect(() => {
+    // Auto start crash game
+    setTimeout(() => startCrashGame(), 2000);
+    
+    return () => {
+      if (crashIntervalRef.current) {
+        clearInterval(crashIntervalRef.current);
+      }
+    };
+  }, []);
 
   return (
     <div className="min-h-screen bg-background text-foreground font-sans">
@@ -352,6 +406,125 @@ const Index: React.FC = () => {
                     </CardContent>
                   </Card>
                 ))}
+              </div>
+            </div>
+          </TabsContent>
+
+          {/* Crash */}
+          <TabsContent value="crash">
+            <div className="space-y-6">
+              <div className="text-center">
+                <h2 className="text-3xl font-heading font-bold mb-2">{gameContent.crash.title}</h2>
+                <p className="text-muted-foreground">{gameContent.crash.description}</p>
+              </div>
+              
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                {/* Main Graph */}
+                <div className="lg:col-span-2">
+                  <Card>
+                    <CardContent className="p-6">
+                      <div className="relative h-64 bg-background rounded-lg overflow-hidden border">
+                        {/* Animated Graph */}
+                        <div className="absolute inset-0 flex items-end justify-center">
+                          <div 
+                            className="relative w-full h-full"
+                            style={{
+                              background: `linear-gradient(45deg, 
+                                transparent 0%, 
+                                transparent ${Math.min((crashMultiplier - 1) * 20, 80)}%, 
+                                rgba(239, 68, 68, 0.1) ${Math.min((crashMultiplier - 1) * 20, 80)}%, 
+                                rgba(239, 68, 68, 0.3) 100%)`
+                            }}
+                          >
+                            {/* Line Chart */}
+                            <svg className="absolute inset-0 w-full h-full">
+                              <polyline
+                                fill="none"
+                                stroke={isCrashActive ? "#ef4444" : "#666"}
+                                strokeWidth="3"
+                                points={`0,${256} ${Math.min((crashMultiplier - 1) * 100, 400)},${256 - Math.min((crashMultiplier - 1) * 200, 240)}`}
+                                className="transition-all duration-75 ease-linear"
+                              />
+                            </svg>
+                            
+                            {/* Current Multiplier Display */}
+                            <div className="absolute top-4 left-4 bg-card p-3 rounded-lg border">
+                              <div className={`text-3xl font-bold ${isCrashActive ? 'text-primary animate-pulse' : 'text-muted-foreground'}`}>
+                                {crashMultiplier.toFixed(2)}x
+                              </div>
+                              <div className="text-sm text-muted-foreground">
+                                {isCrashActive ? 'Лети!' : 'Краш!'}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                      
+                      {/* Controls */}
+                      <div className="mt-4 flex gap-4">
+                        <div className="flex-1">
+                          <input 
+                            type="number" 
+                            placeholder="Ставка" 
+                            className="w-full px-4 py-2 bg-input border border-border rounded-md text-foreground"
+                            disabled={isCrashActive}
+                          />
+                        </div>
+                        <Button 
+                          className="bg-primary hover:bg-primary/90 min-w-24"
+                          disabled={isCrashActive}
+                        >
+                          {isCrashActive ? 'Забрать' : 'Играть'}
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+
+                {/* History */}
+                <div className="space-y-4">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-lg">История</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-2">
+                      {crashHistory.map((mult, index) => (
+                        <div 
+                          key={index}
+                          className={`p-3 rounded-lg flex justify-between items-center ${
+                            mult > 10 ? 'bg-yellow-500/20 text-yellow-400' :
+                            mult > 5 ? 'bg-green-500/20 text-green-400' :
+                            mult > 2 ? 'bg-blue-500/20 text-blue-400' :
+                            'bg-red-500/20 text-red-400'
+                          }`}
+                        >
+                          <span className="font-bold">{mult.toFixed(2)}x</span>
+                          {mult > 10 && <Badge variant="secondary">HIGH</Badge>}
+                        </div>
+                      ))}
+                    </CardContent>
+                  </Card>
+                  
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-lg">Статистика</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-2">
+                      <div className="flex justify-between">
+                        <span>Игроков онлайн:</span>
+                        <span className="text-primary font-bold">1,247</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>В игре:</span>
+                        <span className="text-green-400 font-bold">89</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>Банк:</span>
+                        <span className="text-yellow-400 font-bold">₽12,485</span>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
               </div>
             </div>
           </TabsContent>
