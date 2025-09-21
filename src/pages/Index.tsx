@@ -25,14 +25,16 @@ type CrashPhase = 'betting' | 'flying' | 'crashed';
 
 type GameMode = 'cases' | 'exchange' | 'contracts' | 'roulette' | 'crash' | 'wheel' | 'defuse' | 'double' | 'mines';
 
-interface CSSkin {
+interface CSItem {
   name: string;
   weapon: string;
-  rarity: 'consumer' | 'industrial' | 'milspec' | 'restricted' | 'classified' | 'covert' | 'knife';
-  condition: 'BS' | 'WW' | 'FT' | 'MW' | 'FN';
+  type: 'weapon' | 'knife' | 'gloves' | 'sticker' | 'agent' | 'graffiti' | 'charm' | 'patch' | 'musickit' | 'case';
+  rarity: 'consumer' | 'industrial' | 'milspec' | 'restricted' | 'classified' | 'covert' | 'knife' | 'extraordinary' | 'contraband';
+  condition?: 'BS' | 'WW' | 'FT' | 'MW' | 'FN';
   price: number;
   image: string;
-  float: number;
+  float?: number;
+  collection?: string;
 }
 
 const Index: React.FC = () => {
@@ -50,6 +52,9 @@ const Index: React.FC = () => {
     { username: 'BigWinner', bet: 500, status: 'waiting' },
     { username: 'FastHands', bet: 75, status: 'waiting' }
   ]);
+  const [searchPrice, setSearchPrice] = useState('');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
+  const [filteredItems, setFilteredItems] = useState<CSItem[]>([]);
   const crashIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const bettingIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -79,14 +84,65 @@ const Index: React.FC = () => {
     },
     exchange: {
       title: 'Обменник',
-      description: 'Обменивайте баланс на скины Counter-Strike',
-      skins: [
-        { name: 'Redline', weapon: 'AK-47', rarity: 'classified', condition: 'FT', price: 2850, image: '/img/ak47-redline.jpg', float: 0.25 },
-        { name: 'Asiimov', weapon: 'AWP', rarity: 'covert', condition: 'FT', price: 8900, image: '/img/awp-asiimov.jpg', float: 0.23 },
-        { name: 'Doppler', weapon: 'Karambit', rarity: 'knife', condition: 'FN', price: 125000, image: '/img/karambit-doppler.jpg', float: 0.02 },
-        { name: 'Neo-Noir', weapon: 'M4A4', rarity: 'covert', condition: 'MW', price: 4200, image: '/img/m4a4-neo-noir.jpg', float: 0.08 },
-        { name: 'Hypnotic', weapon: 'Nova', rarity: 'milspec', condition: 'FN', price: 180, image: '/img/nova-hypnotic.jpg', float: 0.01 },
-        { name: 'Vulcan', weapon: 'AK-47', rarity: 'classified', condition: 'MW', price: 3400, image: '/img/ak47-vulcan.jpg', float: 0.12 }
+      description: 'Обменивайте баланс на предметы Counter-Strike',
+      items: [
+        // Ножи
+        { name: 'Doppler', weapon: 'Karambit', type: 'knife', rarity: 'knife', condition: 'FN', price: 125000, image: '', float: 0.02 },
+        { name: 'Fade', weapon: 'Butterfly Knife', type: 'knife', rarity: 'knife', condition: 'FN', price: 89000, image: '', float: 0.01 },
+        { name: 'Tiger Tooth', weapon: 'M9 Bayonet', type: 'knife', rarity: 'knife', condition: 'FN', price: 67000, image: '', float: 0.03 },
+        { name: 'Crimson Web', weapon: 'Bayonet', type: 'knife', rarity: 'knife', condition: 'MW', price: 45000, image: '', float: 0.12 },
+        
+        // Перчатки
+        { name: 'Pandora\'s Box', weapon: 'Sport Gloves', type: 'gloves', rarity: 'extraordinary', condition: 'FT', price: 12000, image: '', float: 0.25 },
+        { name: 'Superconductor', weapon: 'Driver Gloves', type: 'gloves', rarity: 'extraordinary', condition: 'MW', price: 8500, image: '', float: 0.08 },
+        { name: 'Vice', weapon: 'Specialist Gloves', type: 'gloves', rarity: 'extraordinary', condition: 'FT', price: 6200, image: '', float: 0.20 },
+        
+        // Винтовки
+        { name: 'Dragon Lore', weapon: 'AWP', type: 'weapon', rarity: 'contraband', condition: 'FT', price: 45000, image: '', float: 0.25 },
+        { name: 'Asiimov', weapon: 'AWP', type: 'weapon', rarity: 'covert', condition: 'FT', price: 8900, image: '', float: 0.23 },
+        { name: 'Redline', weapon: 'AK-47', type: 'weapon', rarity: 'classified', condition: 'FT', price: 2850, image: '', float: 0.25 },
+        { name: 'Vulcan', weapon: 'AK-47', type: 'weapon', rarity: 'classified', condition: 'MW', price: 3400, image: '', float: 0.12 },
+        { name: 'Fire Serpent', weapon: 'AK-47', type: 'weapon', rarity: 'covert', condition: 'FT', price: 12500, image: '', float: 0.18 },
+        { name: 'Howl', weapon: 'M4A4', type: 'weapon', rarity: 'contraband', condition: 'FT', price: 25000, image: '', float: 0.16 },
+        { name: 'Neo-Noir', weapon: 'M4A4', type: 'weapon', rarity: 'covert', condition: 'MW', price: 4200, image: '', float: 0.08 },
+        
+        // Пистолеты
+        { name: 'Fade', weapon: 'Glock-18', type: 'weapon', rarity: 'restricted', condition: 'FN', price: 850, image: '', float: 0.01 },
+        { name: 'Hypnotic', weapon: 'Nova', type: 'weapon', rarity: 'milspec', condition: 'FN', price: 180, image: '', float: 0.01 },
+        { name: 'Deagle Blaze', weapon: 'Desert Eagle', type: 'weapon', rarity: 'restricted', condition: 'FN', price: 1200, image: '', float: 0.02 },
+        
+        // Наклейки
+        { name: 'Katowice 2014', weapon: 'Titan (Holo)', type: 'sticker', rarity: 'extraordinary', price: 75000, image: '', collection: 'Katowice 2014' },
+        { name: 'Katowice 2014', weapon: 'iBUYPOWER (Holo)', type: 'sticker', rarity: 'extraordinary', price: 150000, image: '', collection: 'Katowice 2014' },
+        { name: 'Crown (Foil)', weapon: 'Crown', type: 'sticker', rarity: 'extraordinary', price: 3500, image: '', collection: 'Craftsmanship' },
+        { name: 'Howling Dawn', weapon: 'Howling Dawn', type: 'sticker', rarity: 'extraordinary', price: 8500, image: '', collection: 'Contraband' },
+        
+        // Агенты
+        { name: 'Sir Bloody Miami Darryl', weapon: 'The Professionals', type: 'agent', rarity: 'extraordinary', price: 4500, image: '' },
+        { name: 'Cmdr. Mae \'Dead Cold\' Jamison', weapon: 'SWAT', type: 'agent', rarity: 'extraordinary', price: 3200, image: '' },
+        { name: 'Prof. Shahmat', weapon: 'Elite Crew', type: 'agent', rarity: 'classified', price: 1800, image: '' },
+        
+        // Граффити
+        { name: 'Sealed', weapon: 'Lambda', type: 'graffiti', rarity: 'classified', price: 45, image: '' },
+        { name: 'Sealed', weapon: 'Nuke', type: 'graffiti', rarity: 'restricted', price: 85, image: '' },
+        { name: 'Sealed', weapon: 'GGWP', type: 'graffiti', rarity: 'milspec', price: 25, image: '' },
+        
+        // Брелки
+        { name: 'Dust II Pin', weapon: 'Genuine Pin', type: 'charm', rarity: 'extraordinary', price: 2500, image: '' },
+        { name: 'Inferno Pin', weapon: 'Genuine Pin', type: 'charm', rarity: 'extraordinary', price: 1800, image: '' },
+        { name: 'Mirage Pin', weapon: 'Genuine Pin', type: 'charm', rarity: 'classified', price: 950, image: '' },
+        
+        // Патчи
+        { name: 'Skill Groups', weapon: 'Global Elite', type: 'patch', rarity: 'classified', price: 750, image: '' },
+        { name: 'Op. Hydra', weapon: 'Guardian', type: 'patch', rarity: 'restricted', price: 320, image: '' },
+        
+        // Музыкальные наборы
+        { name: 'StatTrak™', weapon: 'MOLOTOV', type: 'musickit', rarity: 'classified', price: 850, image: '' },
+        { name: 'Daniel Sadowski', weapon: 'The 8-Bit Kit', type: 'musickit', rarity: 'restricted', price: 450, image: '' },
+        
+        // Кейсы
+        { name: 'Revolution Case', weapon: 'Revolution Case', type: 'case', rarity: 'consumer', price: 15, image: '' },
+        { name: 'Recoil Case', weapon: 'Recoil Case', type: 'case', rarity: 'consumer', price: 8, image: '' }
       ]
     },
     contracts: {
@@ -224,6 +280,26 @@ const Index: React.FC = () => {
       }
     };
   }, []);
+
+  // Filter and sort items
+  useEffect(() => {
+    let items = [...gameContent.exchange.items];
+    
+    // Filter by price
+    if (searchPrice) {
+      const maxPrice = parseInt(searchPrice);
+      if (!isNaN(maxPrice)) {
+        items = items.filter(item => item.price <= maxPrice);
+      }
+    }
+    
+    // Sort by price
+    items.sort((a, b) => {
+      return sortOrder === 'asc' ? a.price - b.price : b.price - a.price;
+    });
+    
+    setFilteredItems(items);
+  }, [searchPrice, sortOrder, gameContent.exchange.items]);
 
   return (
     <div className="min-h-screen bg-background text-foreground font-sans">
@@ -436,40 +512,88 @@ const Index: React.FC = () => {
                 )}
               </div>
               
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {gameContent.exchange.skins.map((skin, index) => (
+              {/* Search and Sort Controls */}
+              <div className="flex flex-col sm:flex-row gap-4 max-w-2xl mx-auto">
+                <div className="flex-1">
+                  <div className="relative">
+                    <Icon name="Search" className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                    <input
+                      type="number"
+                      placeholder="Максимальная цена (₽)"
+                      value={searchPrice}
+                      onChange={(e) => setSearchPrice(e.target.value)}
+                      className="w-full pl-10 pr-4 py-2 bg-input border border-border rounded-md text-foreground placeholder-muted-foreground"
+                    />
+                  </div>
+                </div>
+                <Button
+                  variant="outline"
+                  onClick={() => setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc')}
+                  className="flex items-center space-x-2"
+                >
+                  <Icon name={sortOrder === 'asc' ? 'ArrowUp' : 'ArrowDown'} className="w-4 h-4" />
+                  <span>Цена: {sortOrder === 'asc' ? 'По возрастанию' : 'По убыванию'}</span>
+                </Button>
+              </div>
+              
+              <div className="text-center text-muted-foreground">
+                Найдено предметов: {filteredItems.length}
+              </div>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                {filteredItems.map((item, index) => (
                   <Card key={index} className="hover:shadow-lg transition-shadow">
                     <CardHeader className="pb-2">
                       <div className="aspect-video bg-gradient-to-br from-slate-800 to-slate-900 rounded-lg flex items-center justify-center mb-3">
-                        <Icon name="Zap" className="w-12 h-12 text-muted-foreground" />
+                        <Icon name={
+                          item.type === 'knife' ? 'Sword' :
+                          item.type === 'weapon' ? 'Zap' :
+                          item.type === 'gloves' ? 'Hand' :
+                          item.type === 'sticker' ? 'Sticker' :
+                          item.type === 'agent' ? 'User' :
+                          item.type === 'graffiti' ? 'Spray' :
+                          item.type === 'charm' ? 'Award' :
+                          item.type === 'patch' ? 'Shield' :
+                          item.type === 'musickit' ? 'Music' :
+                          'Package'
+                        } className="w-12 h-12 text-muted-foreground" />
                       </div>
-                      <CardTitle className="text-lg">{skin.weapon} | {skin.name}</CardTitle>
-                      <div className="flex items-center justify-between">
+                      <CardTitle className="text-sm">{item.weapon} {item.name && `| ${item.name}`}</CardTitle>
+                      <div className="flex items-center justify-between flex-wrap gap-1">
                         <Badge variant={
-                          skin.rarity === 'knife' ? 'destructive' :
-                          skin.rarity === 'covert' ? 'destructive' :
-                          skin.rarity === 'classified' ? 'default' :
-                          skin.rarity === 'restricted' ? 'secondary' :
+                          item.rarity === 'knife' || item.rarity === 'extraordinary' || item.rarity === 'contraband' ? 'destructive' :
+                          item.rarity === 'covert' || item.rarity === 'classified' ? 'default' :
+                          item.rarity === 'restricted' || item.rarity === 'milspec' ? 'secondary' :
                           'outline'
-                        }>
-                          {skin.rarity.toUpperCase()}
+                        } className="text-xs">
+                          {item.rarity.toUpperCase()}
                         </Badge>
-                        <Badge variant="outline">{skin.condition}</Badge>
+                        {item.condition && <Badge variant="outline" className="text-xs">{item.condition}</Badge>}
+                        <Badge variant="outline" className="text-xs">{item.type.toUpperCase()}</Badge>
                       </div>
                     </CardHeader>
-                    <CardContent>
-                      <div className="space-y-3">
-                        <div className="flex justify-between text-sm">
-                          <span>Float:</span>
-                          <span className="font-mono">{skin.float.toFixed(3)}</span>
-                        </div>
+                    <CardContent className="pt-2">
+                      <div className="space-y-2">
+                        {item.float && (
+                          <div className="flex justify-between text-xs">
+                            <span>Float:</span>
+                            <span className="font-mono">{item.float.toFixed(3)}</span>
+                          </div>
+                        )}
+                        {item.collection && (
+                          <div className="flex justify-between text-xs">
+                            <span>Коллекция:</span>
+                            <span className="text-muted-foreground">{item.collection}</span>
+                          </div>
+                        )}
                         <div className="flex items-center justify-between">
-                          <span className="text-2xl font-bold text-primary">₽{skin.price.toLocaleString()}</span>
+                          <span className="text-lg font-bold text-primary">₽{item.price.toLocaleString()}</span>
                           <Button 
+                            size="sm"
                             className="bg-primary hover:bg-primary/90"
-                            disabled={!user || user.balance < skin.price}
+                            disabled={!user || user.balance < item.price}
                           >
-                            {!user ? 'Войдите' : user.balance < skin.price ? 'Недостаточно' : 'Купить'}
+                            {!user ? 'Войдите' : user.balance < item.price ? 'Недостаточно' : 'Купить'}
                           </Button>
                         </div>
                       </div>
