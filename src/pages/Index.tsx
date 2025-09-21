@@ -103,12 +103,7 @@ const Index: React.FC = () => {
       {/* Header */}
       <header className="bg-secondary border-b border-border">
         <div className="container mx-auto px-6 py-4 flex items-center justify-between">
-          <div className="flex items-center space-x-4">
-            <img 
-              src="/img/10126296-0fd0-41d3-b423-c7f2540096b1.jpg" 
-              alt="Case Fury Logo" 
-              className="w-12 h-12 object-contain"
-            />
+          <div className="flex items-center">
             <h1 className="text-2xl font-heading font-bold text-primary">
               CASE FURY
             </h1>
